@@ -2,7 +2,7 @@
 
 //ePrint: https://eprints.qut.edu.au/123497/
 
-
+// from phone
 
 //csv | name | parent | myKey | geoLocation_lat | geoLocation_lon
 // codepen: https://codepen.io/greenfield/project/editor/9ef4c06581598e089ddead3fae99c5b9
