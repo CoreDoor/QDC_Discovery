@@ -1,0 +1,36 @@
+
+//last attribute does not require ;
+
+body {
+  //background-color:steelblue;
+ // background-color:transparent;
+}
+
+
+#myCanvas{
+    position : absolute;
+ //   background:transparent;
+}
+
+
+#myContainer {
+  position : absolute;
+ // background:transparent;
+}
+
+
+
+#mySVG {
+  position : absolute;
+  
+}
+
+#myFeature {
+  position : absolute;
+  
+}
+
+#control-container {
+  position : absolute;
+ // background-color:transparent;
+}

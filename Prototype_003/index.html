@@ -1,0 +1,439 @@
+<!-- Globe component based on example converted to D5.js licence use: https://observablehq.com/@jake-low/translucent-earth-satellite-projection@553 -->
+
+<!--https://bl.ocks.org/Fil/f48de8e9207799017093a169031adb02-->
+<!-- Versor dragging with inertia -->
+
+
+<!-- 
+  fix cursors - have move as main active cursor
+  shorten 5 second default delay
+  distance limit is 1.1 - would 1.01 allow for greater magnification?
+  on spin/zoom mode only, have click toggle stop/start spin
+  land over front graticule - is that the preferred effect?
+  show more features, countries, cities, names, tool tips?
+  clean up code layout - in atom using pretty plugin
+-->
+<!-- clip distance value, avoid 0 & 1 extremes  -->
+<!-- convert to main.  -->
+<!-- remove colour tinting - red/green to distinguish spin zoom & Versor InertiaDrag modes
+<!-- intergration with collapsable tree to create next increment of prototype -->
+
+ 
+
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<title>Translucent Earth (Satellite Projection)</title>
+  <!--<link rel="stylesheet" type="text/css" href="./inspector.css">-->
+	<link rel="stylesheet" type="text/css" href="inspector.css">
+</head>
+
+
+<body> 
+
+<script src="https://unpkg.com/d3@5"></script>
+<script src="https://unpkg.com/topojson"></script>
+<script src="https://unpkg.com/versor"></script>
+<script src="https://unpkg.com/d3-inertia"></script>
+
+ <script src="https://d3js.org/d3-geo-projection.v2.min.js"></script>
+ <script src="topojson-client.js"></script>
+ <script src="d3-geo-polygon.js"></script>
+
+
+<script>
+////////////////////////////////////////////////////////////////////////////////////
+
+console.log("start");
+ 
+  
+var size = window.innerWidth *.6;
+
+var width = size,//*w
+    height = size;
+
+var render = function(){};  
+var updateProjection = function() {};  
+  
+var velocity = .01;//*v
+var distance = 20; //1.1;//1.01 min limit
+
+var clickState = 0;
+  
+  
+  
+ //var frontColor = d3.hcl('#a9c681');//////*ADDED - moved to render()
+//var backColor = d3.hcl(frontColor);//////*ADDED
+var frontColor = d3.hcl('pink');//////*ADDED - moved to render()
+var backColor = d3.hcl(frontColor);//////*ADDED
+backColor.l += 15;//////*ADDED
+backColor.c -= 30;//////*ADDED 
+  
+  
+  
+    
+//////////////////////////////////////////////////////////////////////////////////// 
+var container = d3.select("body")
+                .append("div")
+               .attr("width", width)
+               .attr("height",height)
+               .attr('id', 'myContainer');
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  
+//make canvas semi-transparent
+var canvas = d3.select("#myContainer").append("canvas")
+    .attr("id", "myCanvas")
+    .attr("width", width)
+    .attr("height", height)
+
+
+///////////////////////////////////////////////////////////////////////////////
+  var zoom = d3.zoom()
+    .scaleExtent([1.1, 20])
+    .translateExtent([[0, 0], [width, height]])
+    .extent([[0, 0], [width, height]])
+    .wheelDelta(wheelDelta)
+    .on("zoom", zoomed);  
+
+  function wheelDelta() {
+    //Now works - key is the (/500)
+    var v =  -d3.event.deltaY * (d3.event.deltaMode ? 20 : 1) / 500;//division number: higher number = finer steps
+    return v; //** 2;
+}
+
+ function zoomed() {
+   var t = d3.event.transform;
+
+    var dist = t.k;
+   if(dist<=1.1){
+     dist = 1.1;
+   }//to fix the green out screen
+   distance = dist;
+   updateProjection();
+   //console.log("distance = " + distance);
+ }
+////////////////////////////////////////////////////////////////////////////////////////////
+ 
+  var baseSVG = d3.select("#myContainer")//svg elements need CSS absolute positioning
+                .append("svg")               
+               .attr("width", width)
+               .attr("height", height)//
+               .attr('id', 'mySVG')
+               .attr("pointer-events","none")
+                .call(zoom)
+               .on("click",function(){
+                 
+                 //use clickState to manage clicks
+                 
+//PROBLEM: sometimes the first click does not register///////////still problem? check again////////////////
+                 
+                  if(clickState === 0) {
+                   console.log("clickState on baseSVG = " + clickState);  
+                    
+                 //  mt.stop();//on first click
+                   clickState = 1; 
+                  } else if(clickState===1){//never reached
+                    console.log("clickState on baseSVG = " + clickState);  
+                  //  console.log("inside else - MakeTimer");  
+                  //  mt = MakeTimer();//on second click
+                    clickState=0;
+                  } 
+               })
+               .append("g");// allows mousewheele to scale in place
+            
+
+
+  var featureCircle = d3.select("#mySVG")//actually sits on top of the canvas
+                .append("circle")
+               .attr("cx", width/2)
+               .attr("cy", height/2)
+               .attr("r", width/2-5)
+               .attr('id', 'myFeature')
+               .style('fill', 'green')
+               .style('opacity', 0.2)
+               .style('cursor', 'hand')
+               .attr("pointer-events", "auto");//turn receiving events on
+              // .on("click", function () { d3.select(featureCircle).style('fill','green');})
+               //.on("mouseover", function () { console.log("onFeatureCircle");});
+  
+
+
+  //////////////////////////////
+ //Try this reference: https://stackoverflow.com/questions/43646573/d3-get-attributes-from-element
+  
+ 
+ 
+
+//d3.select("#myFeature").each(function(d,i) {  
+// console.log("The cx position of the featureCircle = " + d3.select(this).attr("cx"));
+//})
+  
+//d3.select("#myFeature").each(function(d,i) {  
+//console.log("The fill color of the featureCircle = " + d3.select(this).style("fill"));
+//}) 
+  
+  
+  
+ //////////////////////////////////////////////////////////////////////////////////////////  
+  var context = canvas.node().getContext("2d");//*CON
+ ////////////////////////////////////////////////////////////////////////////////////////// 
+  
+var projection = d3.geoSatellite();
+var backprojection = d3.geoSatellite();  
+
+   updateProjection();  //single call to instanciate projection and backprojection 
+  
+var geoGenerator = d3.geoPath()
+    .projection(projection)
+    .context(context);
+  
+  
+var geoGeneratorBack = d3.geoPath()
+    .projection(backprojection)
+    .context(context);  
+
+
+var circle = d3.geoCircle().center([0.1278, 51.5074]).radius(1);
+  
+var backcircle = d3.geoCircle().center([0.1278, 51.5074]).radius(1);
+  
+/////////////////////////////////////////////////////////////////////////////////////
+  d3.json('world-110m.json').then(function(world){
+
+  var land = topojson.feature(world, world.objects.land);
+
+render();//once to make the globe visible - needed just in this script
+
+render = function() {//////////////////////////////////////////////////////////////////////////
+
+//if(inertia.t){
+//console.log("inertia.t");
+//}
+
+
+if(typeof inertia === 'object'){
+  bpRotate();
+}
+
+
+ if (inertia === undefined){
+  console.log("inertia is undefined");
+   
+   
+  }else if (inertia.t < 1){ 
+   
+   console.log("inertia.t < 1 : " + inertia.t);
+   
+       d3.select("#myFeature").each(function(d,i) {  
+ 
+   var col = d3.select(this).style("fill");
+  if (col === "green"){
+  console.log("delete d3.timer");  
+  mt.stop();//delete d3.timer
+  d3.select(this).style("fill", "red");   
+   console.log("is RED"); 
+  } 
+   })  
+ }   
+   
+   
+ else if (inertia.t >= 1){
+   
+   console.log("inertia.t >= 1 : " + inertia.t);
+   
+   d3.select("#myFeature").each(function(d,i) {  
+
+   var col = d3.select(this).style("fill");
+   if (col === "red"){ 
+    console.log("make new d3.timer"); 
+    mt = MakeTimer(); 
+  //mt.stop();//delete d3.timer
+  d3.select(this).style("fill", "green");   
+   console.log("is GREEN"); 
+  }
+     
+   })
+   
+ }
+
+
+   
+  var path = d3.geoPath()/////////////////////////////////////////////////////////////////////////////
+    .projection(projection)////
+    .context(context);////
+
+    var rotate = projection.rotate();//////////
+  var backrotate = backprojection.rotate();
+
+
+  var backpath = d3.geoPath()//////////////////////////////////////////////////////
+    .projection(backprojection)
+    .context(context);
+
+
+
+
+
+    context.clearRect(0, 0, width, height);///
+
+    context.beginPath();///////////////////////////////////////////////////////
+    path({type:"Sphere"});////*f
+    //context.fillStyle = '#fcfcfc';////*f
+    context.fillStyle = 'cornflowerblue';////*f
+    context.fill();////*f
+
+    context.beginPath();///////////////////////////////////////////////////////
+    backpath(land);////////*g
+    context.fillStyle = backColor; //'#d0ddfa';////////
+    context.fill();////////*g
+
+    context.beginPath();///////////////////////////////////////////////////////
+    backpath(d3.geoGraticule()());//////
+    context.lineWidth = .1;//////
+    //context.strokeStyle = '#97b3f6';//////
+    context.strokeStyle = '#aaa';//////
+    context.stroke();//////*h
+  
+    context.beginPath();
+    //context.opacity = .1;
+    context.globalAlpha = .5;
+    //context.style('opacity', 0.2); 
+    context.fillStyle = "red";
+    geoGeneratorBack(backcircle());
+    context.fill();
+  
+  
+
+    context.beginPath();///////////////////////////////////////////////////////
+    path(d3.geoGraticule()());////
+    context.lineWidth = .1;////
+    ///context.strokeStyle = '#1046c6';////
+    context.strokeStyle = '#111';////
+    context.stroke();////
+
+    context.beginPath();///////////////////////////////////////////////////////
+    path(land);
+    context.globalAlpha = 0.9;
+    context.lineWidth = 1;
+    context.strokeStyle = frontColor.darker(1);//'#1046c6';
+    context.stroke();
+    context.fillStyle = frontColor;//'#5c88ee';
+    //var alpha = context.globalAlpha;
+    //context.globalAlpha = 0.5; //1;
+    context.fill();
+    //context.globalAlpha = alpha;
+   // context.globalAlpha = 1;//makes canvas opaque
+
+    context.beginPath();///////////////////////////////////////////////////////
+    path({type: "Sphere"});/////////////
+    context.lineWidth = .1;/////////////
+    context.strokeStyle = '#111';/////////////
+    context.stroke();/////////////
+ 
+
+    context.beginPath();
+    context.fillStyle = "red";
+    geoGenerator(circle());
+    context.fill();
+  
+
+
+var p = projection.rotate().map(d => Math.floor(10*d)/10);
+var bp = backprojection.rotate().map(d => Math.floor(10*d)/10);
+
+
+}//ends render
+/////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+ function bpRotate(){
+
+  var rotate = backprojection.rotate();///////////
+	 rotate = projection.rotate();
+   backprojection.rotate(rotate);
+ }
+
+// see https://bl.ocks.org/Fil/a034e32156b7b25ee9054c1bc50dc0ca    
+var inertia = d3.geoInertiaDrag(featureCircle, function() { render(); });//works
+//var inertia = d3.geoInertiaDrag(featureCircle, function() { render(); }, projection, time(3000));
+    
+ //var inertia = d3.inertiaDrag(canvas, function() { render(); }, projection);   
+    
+  canvas.style('cursor', 'move');
+
+
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+///////////////////////////////////////////////////////////////////////////////////////////////////////
+    
+//Timer that drives the rotation
+var mt = MakeTimer();
+
+
+function MakeTimer(){//inside or outside
+  //console.log("inside MakeTimer function"); 
+ return   d3.timer(function(elapsed) {//////////////////////////////////////////////
+    //console.log("inside MakeTimer function 2");   
+    var rotate = projection.rotate();///////////
+    rotate[0] += velocity * 20;///*c
+    projection.rotate(rotate);///*c
+    backprojection.rotate(rotate);
+
+    render();///*c
+  });
+}
+    
+  updateProjection();  
+    
+
+});//ends world-110m.json function
+
+////////////////////////////////////////////////////////////////////////////////
+updateProjection = function (){
+ console.log("inside updateProjection"); 
+  
+
+projection.distance(distance)
+.clipAngle(Math.acos(1/distance)*180/Math.PI - 1e-6)
+.precision(0.1)
+.fitExtent([[5,5],[size-5,size-5]],{type:"Sphere"});
+
+
+
+function backShell(){
+  return(
+    d3.geoCircle()
+    .center([180,0])
+    .radius(180 - projection.clipAngle())
+  )};
+
+
+backprojection.distance(distance)
+.clipAngle(0)
+.preclip(d3.geoClipPolygon(backShell()))////
+.translate(projection.translate())
+.scale(projection.scale())
+.precision(0.1);
+
+render();
+}
+///////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+</script>
+
+</body>
+
+</html>
