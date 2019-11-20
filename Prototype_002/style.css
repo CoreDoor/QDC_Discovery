@@ -1,0 +1,62 @@
+body {
+ //background-color:goldenrod;
+  //background-color:greenyellow;
+  //background-color:yellow;
+  //opacity:0.5;
+  background-color: rgba(255, 255, 0, 0.3);
+}
+
+
+.node circle {
+  fill: #fff;
+  stroke: steelblue;
+  stroke-width: 3px;
+}
+
+.node text {
+  font: 12px sans-serif;
+}
+
+.link {
+  fill: none;
+  stroke: #ccc;
+  stroke-width: 2px;
+}
+
+#myContainer {
+position:absolute;
+
+}
+
+#myGlobeContainer {
+position:absolute;
+//background-color:greenyellow;
+}
+
+#my_svgG {
+position:absolute;
+//background-color:yellow;
+}
+
+
+#svgGlobe {
+position:absolute;
+//background-color:yellow;
+}
+
+#svgTree {
+position:absolute;
+
+}
+
+#myTreeContainer {
+position:absolute;
+
+}
+
+
+
+#myBox {
+position:absolute;
+
+}
